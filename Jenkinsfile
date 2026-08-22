@@ -1,66 +1,72 @@
 pipeline {
+
     agent { label 'AGENT-1' }
-    environment { 
+
+    environment {
         PROJECT = 'expense'
-        COMPONENT = 'backend' 
-        appversion = ''
+        COMPONENT = 'backend'
         ACC_ID = '445516434320'
     }
+
     options {
         disableConcurrentBuilds()
         timeout(time: 30, unit: 'MINUTES')
     }
-   /*  parameters{
-        string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
-        text(name: 'BIOGRAPHY', defaultValue: '', description: 'Enter some information about the person')
-        booleanParam(name: 'TOGGLE', defaultValue: true, description: 'Toggle this value')
-        choice(name: 'CHOICE', choices: ['One', 'Two', 'Three'], description: 'Pick something')
-        password(name: 'PASSWORD', defaultValue: 'SECRET', description: 'Enter a password') 
-    } */
+
     stages {
+
         stage('Read Version') {
             steps {
-               script{
-                 def packageJson = readJSON file: 'package.json'
-                 appversion = packageJson.version
-                 echo "The versionis: ${appversion}"
-               }
-            }
-        }
-        stage('install dependencies') {
-            steps {
-               script{
-                    sh 'npm install'
-               }
-            }
-        }
-        stage('Docker Build') {
-            steps {
-               script{
-                 withAWS(region: 'us-east-1', credentials: 'aws-creds')  {
-                sh """
-                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
+                script {
+                    def packageJson = readJSON file: 'package.json'
+                    env.APP_VERSION = packageJson.version
 
-                    docker build -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appversion} .
-
-                    docker push ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${appversion}
-                """
+                    echo "The version is: ${env.APP_VERSION}"
                 }
-                    
+            }
+        }
 
-               }
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                withAWS(
+                    region: 'us-east-1',
+                    credentials: 'aws-creds'
+                ) {
+                    sh """
+                        aws ecr get-login-password --region us-east-1 | \
+                        docker login \
+                        --username AWS \
+                        --password-stdin ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com
+
+                        docker build \
+                        -t ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${APP_VERSION} .
+
+                        docker push \
+                        ${ACC_ID}.dkr.ecr.us-east-1.amazonaws.com/${PROJECT}/${COMPONENT}:${APP_VERSION}
+                    """
+                }
             }
         }
     }
-    post { 
-        always { 
+
+    post {
+
+        always {
             echo 'I will always say Hello again!'
             deleteDir()
         }
-        failure { 
+
+        failure {
             echo 'I will run when pipeline is failed'
         }
-        success { 
+
+        success {
             echo 'I will run when pipeline is success'
         }
     }
